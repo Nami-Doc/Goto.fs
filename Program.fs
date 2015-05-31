@@ -1,17 +1,27 @@
-﻿// Obtenez des informations sur F# via http://fsharp.net
-// Voir le projet 'Didacticiel F#' pour obtenir de l'aide.
-
-open System
+﻿open System
 open System.IO
 
-// # Config
-let storageFile = "paths.txt"
+// constants
+let STORAGE_FILE = "paths.txt"
+let EXIT_ERROR = 1
+let EXIT_SUCCESS = 0
+let CONTENT : Printf.TextWriterFormat<_> = """
+@echo off
+cd "%s"
+"""
 
-// # Helpers
+// exception specifications
+exception InvalidArgumentCount of int
+
+// helpers
 let readLines file = File.ReadLines file |> List.ofSeq
 let split (by: char) (str: string) = List.ofArray <| str.Split([|by|], StringSplitOptions.RemoveEmptyEntries)
 let list2tuple2 (ary: 'a list) = (List.nth ary 0, List.nth ary 1)
 
+let readKvFile file sep = List.map (split sep >> list2tuple2) (readLines file)
+let writeKvFile file sep = 1
+
+// and off we go...
 let exec cmd args =
     let psi = new System.Diagnostics.ProcessStartInfo(cmd)
     psi.Arguments <- sprintf "/d %s" args
@@ -20,39 +30,45 @@ let exec cmd args =
     p.WaitForExit()
     p.ExitCode
 
-exception InvalidArgumentCount of int
+let fileNameFor key = key + ".bat"
+
+let generate paths =
+    for KeyValue(k, v) in paths do
+        use out = new StreamWriter(fileNameFor k)
+        out.WriteLine (printfn CONTENT v)
 
 [<EntryPoint>]
 let main argv =
-    let paths = dict <| List.map (split '=' >> list2tuple2) (readLines storageFile)
+    let paths = dict <| readKvFile STORAGE_FILE '='
     match argv with
-    | [| key |] ->
-        let (found, value) = paths.TryGetValue(key)
-        if found then
-            ignore <| exec "mycd.bat" value
-            Environment.CurrentDirectory <- value
-            0
+    | [| "remove"; key |] ->
+        if paths.ContainsKey key then
+            assert (paths.Remove key)
+            File.Delete (fileNameFor key)
+            generate paths
+            printf "Removed %s from the dict" key
         else
-            printf "Unable to find path %s" key
-            1 // error !
-    | [| "--remove"; key |] ->
-        printf "Removing %s from the dict" key
-        0
-    | [| "--add"; key; value |] ->
+            printf "%s is not a valid path" key
+
+        EXIT_SUCCESS
+    | [| "add"; key; value |] ->
         printf "Assigning %s to %s" key value
-        0
-    //| [||] ->
+        generate paths
+        EXIT_SUCCESS
+    | [| "gen" |] ->
+        ignore <| generate paths
+        EXIT_SUCCESS
     | _ ->
         printf """
-Utilisation :
-    goto (Affiche ce message et la liste des chemins)
-    goto <key> (Va vers le chemin appelé <key>)
-    goto --add <key> <value> (Enregistre <value> au nom <key>)
-    goto --remove <key> (Retire <key> des chemins)
+Usage:
+    goto (displays this message)
+    goto add <key> <value> (adds the path <value> with the name <key>)
+    goto remove <key> (removes <key> from the list of paths)
 
-Chemins existants :
+Existing paths:
         """
-        for KeyValue(k, v) in paths do
-            printf "nom: %s, destination: %s" k v
 
-        0
+        for KeyValue(k, v) in paths do
+            printf "path %s goes to %s" k v
+
+        EXIT_SUCCESS
