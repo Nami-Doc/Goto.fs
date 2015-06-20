@@ -1,1 +1,4 @@
-﻿p=C:/P
+fghj=C:/wamp/www
+fghjx=C:/wamp/www/
+x=C:/b
+y=C:/b

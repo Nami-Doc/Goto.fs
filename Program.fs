@@ -26,14 +26,6 @@ let serializeKv paths sep = Map.fold (fun cur k v -> cur + k + sep.ToString() + 
 let writeFile filename content = File.WriteAllText (filename, content)
 
 // and off we go...
-let exec cmd args =
-    let psi = new System.Diagnostics.ProcessStartInfo(cmd)
-    psi.Arguments <- sprintf "/d %s" args
-    psi.UseShellExecute <- false
-    let p = System.Diagnostics.Process.Start(psi)
-    p.WaitForExit()
-    p.ExitCode
-
 let fileNameFor key = key + ".bat"
 
 let generate storagePath paths =
@@ -75,7 +67,6 @@ Usage:
 Existing paths:
 """
 
-        for KeyValue(k, v) in paths do
-            printf "path %s goes to %s\n" k v
+        Map.iter (fun k v -> printf "path %s goes to %s\n" k v) paths
 
         EXIT_SUCCESS
