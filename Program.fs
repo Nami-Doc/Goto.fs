@@ -5,9 +5,9 @@ open System.IO
 let STORAGE_FILE = "paths.txt"
 let EXIT_ERROR = 1
 let EXIT_SUCCESS = 0
-let CONTENT : Printf.TextWriterFormat<_> = """
+let CONTENT = """
 @echo off
-cd "%s"
+cd "{0}"
 """
 
 // exception specifications
@@ -19,7 +19,7 @@ let split (by: char) (str: string) = List.ofArray <| str.Split([|by|], StringSpl
 let list2tuple2 (ary: 'a list) = (List.nth ary 0, List.nth ary 1)
 
 let readKvFile file sep = List.map (split sep >> list2tuple2) (readLines file)
-let writeKvFile file sep = 1
+let serializeKv paths sep = "1"
 
 // and off we go...
 let exec cmd args =
@@ -32,10 +32,17 @@ let exec cmd args =
 
 let fileNameFor key = key + ".bat"
 
-let generate paths =
-    for KeyValue(k, v) in paths do
-        use out = new StreamWriter(fileNameFor k)
-        out.WriteLine (printfn CONTENT v)
+let trim (str: String) = str.Trim()
+
+let generate storagePath paths =
+    // first off, create the .bat files
+    for KeyValue(k, v : string) in paths do
+        use file = new StreamWriter(fileNameFor k, true)
+        printf "hey it's %s" (fileNameFor k)
+        file.WriteLine (trim <| String.Format(CONTENT, v))
+    // then store the file content itself
+    use file = new StreamWriter(STORAGE_FILE, true)
+    file.WriteLine (serializeKv storagePath paths)
 
 [<EntryPoint>]
 let main argv =
@@ -45,7 +52,7 @@ let main argv =
         if paths.ContainsKey key then
             assert (paths.Remove key)
             File.Delete (fileNameFor key)
-            generate paths
+            generate STORAGE_FILE paths
             printf "Removed %s from the dict" key
         else
             printf "%s is not a valid path" key
@@ -53,7 +60,8 @@ let main argv =
         EXIT_SUCCESS
     | [| "add"; key; value |] ->
         printf "Assigning %s to %s" key value
-        generate paths
+        paths.Add (key, value)
+        generate STORAGE_FILE paths
         EXIT_SUCCESS
     | [| "gen" |] ->
         ignore <| generate paths
