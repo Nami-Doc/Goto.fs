@@ -10,9 +10,14 @@ let CONTENT = """
 @echo off
 cd "{0}"
 """
+let HELP_MESSAGE = """
+Usage:
+    goto (displays this message)
+    goto add <key> <value> (adds the path <value> with the name <key>)
+    goto remove <key> (removes <key> from the list of paths)
 
-// exception specifications
-exception InvalidArgumentCount of int
+Existing paths:
+"""
 
 // helpers
 let readLines file = File.ReadLines file |> List.ofSeq
@@ -38,35 +43,26 @@ let generate storagePath paths =
 let main argv =
     let paths = Map.ofSeq <| readKvFile STORAGE_FILE SPLIT
     match argv with
+    | [| "add"; key; value |] ->
+        printf "Assigning %s to %s" key value
+        generate STORAGE_FILE (Map.add key value paths)
+        EXIT_SUCCESS
+
     | [| "remove"; key |] ->
-        if paths.ContainsKey key then
-            let paths = Map.remove key paths
+        if Map.containsKey key paths then
             File.Delete (fileNameFor key)
-            generate STORAGE_FILE paths
+            generate STORAGE_FILE (Map.remove key paths)
             printf "Removed %s from the dict" key
         else
             printf "%s is not a valid path" key
+        EXIT_SUCCESS
 
-        EXIT_SUCCESS
-    | [| "add"; key; value |] ->
-        printf "Assigning %s to %s" key value
-        let paths = Map.add key value paths
-        generate STORAGE_FILE paths
-        EXIT_SUCCESS
     | [| "gen" |] ->
         printf "Regenerating files..."
         generate STORAGE_FILE paths
         EXIT_SUCCESS
+
     | _ ->
-        printf """
-Usage:
-    goto (displays this message)
-    goto add <key> <value> (adds the path <value> with the name <key>)
-    goto remove <key> (removes <key> from the list of paths)
-
-Existing paths:
-"""
-
+        Console.Write HELP_MESSAGE
         Map.iter (fun k v -> printf "path %s goes to %s\n" k v) paths
-
         EXIT_SUCCESS
