@@ -3,6 +3,7 @@ open System.IO
 
 // constants
 let STORAGE_FILE = "paths.txt"
+let SPLIT = '='
 let EXIT_ERROR = 1
 let EXIT_SUCCESS = 0
 let CONTENT = """
@@ -17,9 +18,12 @@ exception InvalidArgumentCount of int
 let readLines file = File.ReadLines file |> List.ofSeq
 let split (by: char) (str: string) = List.ofArray <| str.Split([|by|], StringSplitOptions.RemoveEmptyEntries)
 let list2tuple2 (ary: 'a list) = (List.nth ary 0, List.nth ary 1)
+let trim (str: String) = str.Trim()
 
 let readKvFile file sep = List.map (split sep >> list2tuple2) (readLines file)
-let serializeKv paths sep = "1"
+let serializeKv paths sep = Map.fold (fun cur k v -> cur + k + sep.ToString() + v + "\n") "" paths
+
+let writeFile filename content = File.WriteAllText (filename, content)
 
 // and off we go...
 let exec cmd args =
@@ -32,25 +36,19 @@ let exec cmd args =
 
 let fileNameFor key = key + ".bat"
 
-let trim (str: String) = str.Trim()
-
 let generate storagePath paths =
     // first off, create the .bat files
-    for KeyValue(k, v : string) in paths do
-        use file = new StreamWriter(fileNameFor k, true)
-        printf "hey it's %s" (fileNameFor k)
-        file.WriteLine (trim <| String.Format(CONTENT, v))
+    Map.iter (fun k (v: string) -> writeFile (fileNameFor k) (trim <| String.Format(CONTENT, v))) paths
     // then store the file content itself
-    use file = new StreamWriter(STORAGE_FILE, true)
-    file.WriteLine (serializeKv storagePath paths)
+    writeFile STORAGE_FILE (serializeKv paths SPLIT)
 
 [<EntryPoint>]
 let main argv =
-    let paths = dict <| readKvFile STORAGE_FILE '='
+    let paths = Map.ofSeq <| readKvFile STORAGE_FILE SPLIT
     match argv with
     | [| "remove"; key |] ->
         if paths.ContainsKey key then
-            assert (paths.Remove key)
+            let paths = Map.remove key paths
             File.Delete (fileNameFor key)
             generate STORAGE_FILE paths
             printf "Removed %s from the dict" key
@@ -60,11 +58,12 @@ let main argv =
         EXIT_SUCCESS
     | [| "add"; key; value |] ->
         printf "Assigning %s to %s" key value
-        paths.Add (key, value)
+        let paths = Map.add key value paths
         generate STORAGE_FILE paths
         EXIT_SUCCESS
     | [| "gen" |] ->
-        ignore <| generate paths
+        printf "Regenerating files..."
+        generate STORAGE_FILE paths
         EXIT_SUCCESS
     | _ ->
         printf """
@@ -74,9 +73,9 @@ Usage:
     goto remove <key> (removes <key> from the list of paths)
 
 Existing paths:
-        """
+"""
 
         for KeyValue(k, v) in paths do
-            printf "path %s goes to %s" k v
+            printf "path %s goes to %s\n" k v
 
         EXIT_SUCCESS
